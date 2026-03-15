@@ -1,0 +1,9 @@
+# Environment files
+.env
+.env.local
+
+# Virtual Environment
+.venv/
+venv/
+ENV/
+env/
