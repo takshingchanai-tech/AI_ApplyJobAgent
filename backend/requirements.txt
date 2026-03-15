@@ -1,0 +1,10 @@
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+openai>=1.51.0
+langchain-openai>=0.2.0
+python-dotenv>=1.0.0
+pydantic>=2.7.0
+browser-use>=0.1.40
+playwright>=1.44.0
+reportlab>=4.2.0
+python-multipart>=0.0.9
