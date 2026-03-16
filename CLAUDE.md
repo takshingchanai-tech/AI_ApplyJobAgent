@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-UpworkJobApplyAgent is an AI agent that automates Upwork job applications with a human-in-the-loop (HITL) review step. It uses a **Manager Agent** (ReAct loop powered by LLM tool calling) that orchestrates three sub-agents: ScraperAgent (headless browser), JobScorerAgent (optional fit scoring), and CoverLetterAgent (LLM text + PDF). All data lives in SQLite. UI: React 18 + TypeScript + Vite + Zustand. Backend: Python FastAPI + SSE + browser-use.
+UpworkJobApplyAgent is an AI agent that automates Upwork job applications with a human-in-the-loop (HITL) review step. It scrapes Upwork in headless mode, generates cover letters + PDFs, then opens a headed browser for the user to review and click Submit. All data lives in SQLite. UI: React 18 + TypeScript + Vite + Zustand. Backend: Python FastAPI + SSE + browser-use.
 
 ## Development Instructions
 
@@ -67,27 +67,8 @@ sqlite3 data/upwork_agent.db "SELECT title, status, applied_at FROM jobs;"
 2. User clicks "Open for Review" → headed browser opens job proposal page with cover letter pre-filled
 3. User clicks Submit on Upwork → returns to app → clicks "Mark as Applied"
 
-## Agent Architecture
-
-```
-backend/agents/
-├── manager.py          # ManagerAgent — LLM ReAct loop (tool calling), entry point: run_manager_agent()
-├── scraper.py          # ScraperAgent — browser-use headless scraping, falls back to mock data
-├── cover_letter_agent.py  # CoverLetterAgent — LLM text + PDF, 3x retry with backoff
-├── scorer.py           # JobScorerAgent — optional LLM fit scoring (enable_job_scoring setting)
-└── types.py            # Shared Pydantic contracts: ScraperResult, ScoredJob, CoverLetterResult, AgentState
-```
-
-### Manager ReAct loop
-The manager calls `self._llm.chat.completions.create()` with 4 tools and `tool_choice="auto"`. The LLM reasons through a `user_context` message (keywords, search URL, filters) and calls tools in order: `scrape_jobs → score_and_filter_jobs → generate_cover_letters → finish`. Each tool result is appended to the message history so the LLM observes results before deciding the next action.
-
-### New SSE events
-- `react_thinking` — LLM's reasoning text before each tool call
-- `phase_changed` — emitted when the manager dispatches a tool
-
 ## Notes
 
 - Mock jobs returned if `browser-use` is not installed or fails (useful for UI testing)
 - Chrome profile path lets the agent reuse existing Upwork login cookies
-- `backend/agent.py` is kept but unused — replaced by `backend/agents/manager.py`
 - Sibling projects for reference: `Agent2_memorySubagent_Qwen_E2Mobile` (SSE/agent pattern), `Agent2_memorySubagent` (DB + frontend pattern)
