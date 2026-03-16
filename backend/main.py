@@ -1,6 +1,6 @@
 """
 FastAPI backend for UpworkJobApplyAgent.
-All routes, lifespan, SSE queue, and background scheduler.
+All routes, lifespan, and SSE queue management.
 """
 
 import asyncio
@@ -36,74 +36,10 @@ sse_queue: asyncio.Queue = asyncio.Queue()
 _agent_task: Optional[asyncio.Task] = None
 _run_id: Optional[str] = None
 _started_at: Optional[str] = None
-_scheduler_task: Optional[asyncio.Task] = None
 
 ATTACHMENTS_DIR = Path(__file__).parent.parent / "data" / "attachments"
 COVER_LETTERS_DIR = Path(__file__).parent.parent / "data" / "cover_letters"
 PROJECT_ROOT = Path(__file__).parent.parent
-
-
-# ---------------------------------------------------------------------------
-# Scheduler
-# ---------------------------------------------------------------------------
-
-async def _scheduler_loop():
-    """Background loop that auto-starts the agent at configured intervals."""
-    global _agent_task, _run_id, _started_at
-
-    while True:
-        try:
-            await asyncio.sleep(60)  # check every minute
-
-            from services.settings import get_all_settings, update_settings
-            settings = get_all_settings()
-
-            auto_run_hours = float(settings.get("auto_run_hours", 0) or 0)
-            if auto_run_hours <= 0:
-                continue
-
-            # Determine if enough time has elapsed
-            last_run_str = settings.get("last_auto_run_at", "") or ""
-            should_run = False
-            if not last_run_str:
-                should_run = True
-            else:
-                try:
-                    last_run = datetime.fromisoformat(last_run_str)
-                    elapsed_hours = (datetime.now(timezone.utc) - last_run).total_seconds() / 3600
-                    should_run = elapsed_hours >= auto_run_hours
-                except Exception:
-                    should_run = True
-
-            if not should_run:
-                continue
-
-            # Don't start if agent already running
-            if _agent_task and not _agent_task.done():
-                continue
-
-            logger.info("Scheduler: auto-starting agent")
-            await sse_queue.put({"type": "log", "level": "info", "message": "Scheduler: auto-starting agent run"})
-
-            # Inject API keys
-            if not settings.get("openai_api_key"):
-                settings["openai_api_key"] = os.getenv("OPENAI_API_KEY", "")
-            if not settings.get("dashscope_api_key"):
-                settings["dashscope_api_key"] = os.getenv("DASHSCOPE_API_KEY", "")
-
-            _run_id = str(uuid.uuid4())[:8]
-            _started_at = datetime.now(timezone.utc).isoformat()
-
-            from agents.manager import run_manager_agent
-            _agent_task = asyncio.create_task(run_manager_agent(sse_queue, settings, _run_id))
-
-            # Record this run time
-            update_settings({"last_auto_run_at": datetime.now(timezone.utc).isoformat()})
-
-        except asyncio.CancelledError:
-            break
-        except Exception as e:
-            logger.error(f"Scheduler error: {e}")
 
 
 # ---------------------------------------------------------------------------
@@ -112,16 +48,12 @@ async def _scheduler_loop():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global _scheduler_task
     ATTACHMENTS_DIR.mkdir(parents=True, exist_ok=True)
     COVER_LETTERS_DIR.mkdir(parents=True, exist_ok=True)
     from database.db import get_db
     get_db()
-    _scheduler_task = asyncio.create_task(_scheduler_loop())
     logger.info("UpworkJobApplyAgent initialized.")
     yield
-    if _scheduler_task:
-        _scheduler_task.cancel()
     logger.info("UpworkJobApplyAgent shutting down.")
 
 
@@ -161,7 +93,6 @@ class SettingsUpdate(BaseModel):
     portfolio_path: Optional[str] = None
     openai_api_key: Optional[str] = None
     dashscope_api_key: Optional[str] = None
-    auto_run_hours: Optional[Union[str, float]] = None
 
 
 # ---------------------------------------------------------------------------
@@ -193,6 +124,7 @@ async def agent_start():
     from services.settings import get_all_settings
     settings = get_all_settings()
 
+    # Inject env API keys if not set in DB
     if not settings.get("openai_api_key"):
         settings["openai_api_key"] = os.getenv("OPENAI_API_KEY", "")
     if not settings.get("dashscope_api_key"):
@@ -201,9 +133,9 @@ async def agent_start():
     _run_id = str(uuid.uuid4())[:8]
     _started_at = datetime.now(timezone.utc).isoformat()
 
-    from agents.manager import run_manager_agent
+    from agent import run_scrape_agent
     _agent_task = asyncio.create_task(
-        run_manager_agent(sse_queue, settings, _run_id)
+        run_scrape_agent(sse_queue, settings, _run_id)
     )
 
     return {"status": "started", "run_id": _run_id}
@@ -233,10 +165,12 @@ async def agent_stream():
     """SSE stream — drains the global sse_queue."""
 
     async def event_generator():
+        # Send initial ping
         yield "data: " + json.dumps({"type": "ping"}) + "\n\n"
 
         while True:
             try:
+                # Drain queue with 15s timeout (keepalive ping)
                 event = await asyncio.wait_for(sse_queue.get(), timeout=15.0)
                 yield "data: " + json.dumps(event) + "\n\n"
             except asyncio.TimeoutError:
@@ -308,12 +242,14 @@ async def open_for_review(job_id: str):
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
+    # Update status to applying
     update_job(job_id, {"status": "applying"})
 
     settings = get_all_settings()
     if not settings.get("openai_api_key"):
         settings["openai_api_key"] = os.getenv("OPENAI_API_KEY", "")
 
+    # Launch browser in background (non-blocking for the API response)
     from browser_submit import open_for_review as browser_open
     asyncio.create_task(browser_open(job, settings))
 
@@ -327,56 +263,12 @@ async def mark_applied(job_id: str):
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
+    from datetime import datetime, timezone
     result = update_job(job_id, {
         "status": "applied",
         "applied_at": datetime.now(timezone.utc).isoformat(),
     })
     return result
-
-
-@app.post("/jobs/{job_id}/retry-cover-letter")
-async def retry_cover_letter(job_id: str):
-    """Retry cover letter generation for a job stuck at 'seen' status."""
-    from services.jobs import get_job, update_job, get_job_counts
-    from services.settings import get_all_settings
-
-    job = get_job(job_id)
-    if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
-
-    settings = get_all_settings()
-    if not settings.get("openai_api_key"):
-        settings["openai_api_key"] = os.getenv("OPENAI_API_KEY", "")
-    if not settings.get("dashscope_api_key"):
-        settings["dashscope_api_key"] = os.getenv("DASHSCOPE_API_KEY", "")
-
-    async def _do_retry():
-        from cover_letter import generate_cover_letter_text, generate_pdf
-        try:
-            cover_text = await generate_cover_letter_text(job, settings)
-            pdf_path = generate_pdf(job_id, cover_text)
-            update_job(job_id, {
-                "status": "ready",
-                "cover_letter_text": cover_text,
-                "cover_letter_pdf": pdf_path,
-            })
-            await sse_queue.put({
-                "type": "job_ready",
-                "job_id": job_id,
-                "title": job.get("title", ""),
-                "job_url": job.get("job_url", ""),
-            })
-            counts = get_job_counts()
-            await sse_queue.put({"type": "counts_updated", "counts": counts})
-            await sse_queue.put({"type": "log", "level": "info",
-                                 "message": f"Retry succeeded: {job.get('title', job_id)}"})
-        except Exception as e:
-            await sse_queue.put({"type": "error", "message": f"Retry failed: {e}", "job_id": job_id})
-            await sse_queue.put({"type": "log", "level": "error",
-                                 "message": f"Retry failed for '{job.get('title', job_id)}': {e}"})
-
-    asyncio.create_task(_do_retry())
-    return {"status": "retrying", "job_id": job_id}
 
 
 # ---------------------------------------------------------------------------
@@ -388,6 +280,7 @@ async def upload_resume(file: UploadFile = File(...)):
     path = ATTACHMENTS_DIR / "resume.pdf"
     content = await file.read()
     path.write_bytes(content)
+    # Save path to settings
     from services.settings import update_settings
     update_settings({"resume_path": str(path)})
     return {"status": "ok", "path": str(path)}
