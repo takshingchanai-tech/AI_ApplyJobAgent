@@ -12,13 +12,18 @@ The agent scrapes Upwork in headless mode, generates personalised cover letters,
 Start Agent
     │
     ▼
-Headless Chrome scrapes Upwork jobs matching your keywords
+Manager Agent (LLM ReAct loop)
+    │  reasons about state, calls sub-agents as tools in order:
     │
-    ▼
-Deduplication check (already seen? skip)
+    ├─► ScraperAgent — headless Chrome scrapes Upwork jobs matching your keywords
     │
-    ▼
-LLM generates personalised cover letter + saves as PDF
+    ├─► JobScorerAgent — LLM scores each job for fit against your profile (optional)
+    │       low-scoring jobs are skipped
+    │
+    ├─► CoverLetterAgent — LLM generates personalised cover letter + saves as PDF
+    │       (3x retry with backoff on failure)
+    │
+    └─► finish — Manager summarises the run
     │
     ▼
 Job status → "Ready" · macOS notification fires
@@ -63,15 +68,21 @@ UpworkJobApplyAgent/
 │   └── cover_letters/              # Generated PDFs per job
 ├── backend/
 │   ├── main.py                     # FastAPI app + all routes
-│   ├── agent.py                    # Scraping loop + SSE events
+│   ├── agents/                     # Multi-agent system
+│   │   ├── manager.py              # ManagerAgent — LLM ReAct loop, run_manager_agent() entry
+│   │   ├── scraper.py              # ScraperAgent — browser-use headless scraping
+│   │   ├── cover_letter_agent.py   # CoverLetterAgent — LLM text + PDF with retry
+│   │   ├── scorer.py               # JobScorerAgent — optional LLM fit scoring
+│   │   └── types.py                # Shared Pydantic contracts
+│   ├── agent.py                    # Legacy (unused, kept for reference)
 │   ├── browser_submit.py           # Headed browser HITL review
-│   ├── cover_letter.py             # LLM text gen + PDF
+│   ├── cover_letter.py             # LLM text gen + PDF (called by CoverLetterAgent)
 │   ├── notifications.py            # macOS notifications
 │   ├── requirements.txt
 │   ├── database/db.py              # SQLite WAL init + schema
 │   └── services/
 │       ├── jobs.py                 # Job CRUD
-│       └── settings.py            # Settings CRUD
+│       └── settings.py             # Settings CRUD
 └── frontend/
     └── src/
         ├── components/
@@ -150,6 +161,8 @@ Open `http://localhost:5173` → click **Settings**:
 | Resume PDF | Upload your resume (attached to proposals) |
 | Portfolio PDF | Upload your portfolio (attached to proposals) |
 | Chrome Profile | Path to Chrome profile for Upwork login cookies |
+| Enable Job Scoring | LLM scores each job for fit before generating cover letters (default off) |
+| Score Threshold | Minimum fit score 0.0–1.0 to include a job (default 0.6) |
 
 ### Running the agent
 
