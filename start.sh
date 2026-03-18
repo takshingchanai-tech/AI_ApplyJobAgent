@@ -37,27 +37,24 @@ elif [ -f "$CHROME_BIN" ]; then
   echo "⚠️  For best results (bypass Cloudflare), launch Chrome with remote debugging BEFORE running this script:"
   echo "   open -a 'Google Chrome' --args --remote-debugging-port=9222 --disable-blink-features=AutomationControlled"
   echo ""
-  echo "Launching agent Chrome now (may hit Cloudflare challenge)..."
-  CHROME_PROFILE_SRC="${CHROME_PROFILE_PATH:-$HOME/Library/Application Support/Google/Chrome/Default}"
-  AGENT_CHROME_TMP=$(mktemp -d)
-  mkdir -p "$AGENT_CHROME_TMP/Default"
-  for f in "Cookies" "Preferences" "Network Persistent State" "Visited Links"; do
-    cp "$CHROME_PROFILE_SRC/$f" "$AGENT_CHROME_TMP/Default/" 2>/dev/null || true
-  done
-  cp -r "$CHROME_PROFILE_SRC/Local Storage" "$AGENT_CHROME_TMP/Default/" 2>/dev/null || true
-  cp "$(dirname "$CHROME_PROFILE_SRC")/Local State" "$AGENT_CHROME_TMP/" 2>/dev/null || true
+  echo "Launching Chrome with remote debugging..."
+  echo ""
+  echo "👉 In the Chrome window that opens:"
+  echo "   1. Go to https://www.upwork.com"
+  echo "   2. Log in if prompted"
+  echo "   3. Solve any CAPTCHA / 'I am not a robot' check"
+  echo "   Then the agent will connect automatically."
+  echo ""
 
   "$CHROME_BIN" \
     --remote-debugging-port=9222 \
-    --user-data-dir="$AGENT_CHROME_TMP" \
     --disable-blink-features=AutomationControlled \
     --no-first-run \
     --no-default-browser-check \
-    --disable-extensions \
-    --window-position=-32000,-32000 \
+    "https://www.upwork.com" \
     2>/dev/null &
   AGENT_CHROME_PID=$!
-  sleep 2
+  sleep 3
 fi
 
 echo "Starting backend on :8000..."
