@@ -302,7 +302,7 @@ async def _detect_auth_wall(page, settings: dict) -> bool:
         return False
     client = AsyncOpenAI(api_key=api_key)
     resp = await client.chat.completions.create(
-        model=settings.get("model", "gpt-4o-mini"),
+        model="gpt-4o-mini",
         messages=[{"role": "user", "content":
             f"Page title: '{title}'\nURL: {url}\n"
             "Is this a login page, sign-in wall, or CAPTCHA? Answer only 'yes' or 'no'."}],
