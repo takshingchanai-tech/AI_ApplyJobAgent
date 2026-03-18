@@ -247,6 +247,22 @@ export default function SettingsModal({ onClose }: Props) {
             </div>
           </Section>
 
+          <Section title="Auto-Run Schedule">
+            <Label>Run Every N Hours (0 = disabled)</Label>
+            <input
+              type="number"
+              value={form.auto_run_hours || '0'}
+              onChange={(e) => set('auto_run_hours', e.target.value)}
+              min={0}
+              step={0.5}
+              placeholder="0"
+              style={inputStyle}
+            />
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+              Set to e.g. 6 to auto-run the agent every 6 hours. Requires the backend to be running.
+            </div>
+          </Section>
+
           {error && <div style={{ color: '#ef4444', fontSize: 13 }}>{error}</div>}
 
           <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>

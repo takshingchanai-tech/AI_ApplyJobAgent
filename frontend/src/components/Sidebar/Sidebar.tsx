@@ -21,6 +21,7 @@ export default function Sidebar({ view, onChangeView }: Props) {
     { view: 'ready', label: 'Ready', icon: '📋', badge: counts.ready },
     { view: 'applying', label: 'Applying', icon: '🔄', badge: counts.applying },
     { view: 'applied', label: 'Applied', icon: '✅', badge: counts.past },
+    { view: 'pending', label: 'Pending', icon: '⚠️', badge: counts.seen },
     { view: 'settings', label: 'Settings', icon: '⚙️' },
   ]
 

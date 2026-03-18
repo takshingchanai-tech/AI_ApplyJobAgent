@@ -33,6 +33,8 @@ export const openForReview = (id: string) =>
   req<{ status: string; job_id: string }>(`/jobs/${id}/open-for-review`, { method: 'POST' })
 export const markApplied = (id: string) =>
   req<Job>(`/jobs/${id}/mark-applied`, { method: 'POST' })
+export const retryCoverLetter = (id: string) =>
+  req<{ status: string; job_id: string }>(`/jobs/${id}/retry-cover-letter`, { method: 'POST' })
 
 // Settings
 export const getSettings = () => req<Settings>('/settings')

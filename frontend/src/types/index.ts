@@ -44,6 +44,7 @@ export interface Settings {
   portfolio_path: string
   openai_api_key?: string
   dashscope_api_key?: string
+  auto_run_hours?: string
 }
 
 export interface LogEntry {
@@ -53,7 +54,7 @@ export interface LogEntry {
   timestamp: string
 }
 
-export type View = 'activity' | 'ready' | 'applying' | 'applied' | 'settings'
+export type View = 'activity' | 'ready' | 'applying' | 'applied' | 'pending' | 'settings'
 
 export interface SSEEvent {
   type: string

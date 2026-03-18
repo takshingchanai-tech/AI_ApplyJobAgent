@@ -36,6 +36,7 @@ export default function JobListView({ status, title, emptyMessage }: Props) {
   const actionType = status === 'ready' ? 'ready'
     : status === 'applying' ? 'applying'
     : status === 'applied' ? 'applied'
+    : status === 'seen' ? 'seen'
     : 'none'
 
   return (

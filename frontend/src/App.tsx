@@ -49,6 +49,13 @@ export default function App() {
               emptyMessage="No applied jobs yet."
             />
           )}
+          {view === 'pending' && (
+            <JobListView
+              status="seen"
+              title="Pending (Cover Letter Failed)"
+              emptyMessage="No pending jobs. All jobs have been processed successfully."
+            />
+          )}
           {view === 'settings' && (
             <div style={{ padding: 40, maxWidth: 640, margin: '0 auto', width: '100%', overflowY: 'auto' }}>
               <h2 style={{ margin: '0 0 20px', fontSize: 18, fontWeight: 700, color: 'var(--text-primary)' }}>

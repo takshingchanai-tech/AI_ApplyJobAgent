@@ -68,7 +68,9 @@ def _init_schema(conn: sqlite3.Connection):
             ('freelancer_skills', '[]'),
             ('freelancer_bio',    ''),
             ('resume_path',       ''),
-            ('portfolio_path',    '');
+            ('portfolio_path',    ''),
+            ('auto_run_hours',    '0'),
+            ('last_auto_run_at',  '');
     """)
     conn.commit()
     logger.info("Database schema initialized")

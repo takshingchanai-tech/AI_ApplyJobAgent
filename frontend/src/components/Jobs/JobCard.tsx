@@ -1,12 +1,12 @@
 import { useState } from 'react'
 import type { Job } from '../../types'
-import { openForReview, markApplied, skipJob } from '../../api'
+import { openForReview, markApplied, skipJob, retryCoverLetter } from '../../api'
 import { useJobsStore } from '../../store/jobsStore'
 import { getJobCounts } from '../../api'
 
 interface Props {
   job: Job
-  showActions?: 'ready' | 'applying' | 'applied' | 'none'
+  showActions?: 'ready' | 'applying' | 'applied' | 'seen' | 'none'
 }
 
 export default function JobCard({ job, showActions = 'none' }: Props) {
@@ -37,6 +37,18 @@ export default function JobCard({ job, showActions = 'none' }: Props) {
       setCounts(counts)
     } catch (err: any) {
       alert(`Failed to mark applied: ${err.message}`)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleRetry() {
+    setLoading(true)
+    try {
+      await retryCoverLetter(job.id)
+      // SSE will fire job_ready and counts_updated when done
+    } catch (err: any) {
+      alert(`Failed to retry: ${err.message}`)
     } finally {
       setLoading(false)
     }
@@ -204,6 +216,20 @@ export default function JobCard({ job, showActions = 'none' }: Props) {
             <span style={{ fontSize: 12, color: '#22c55e', fontWeight: 600 }}>
               Applied {job.applied_at ? `on ${new Date(job.applied_at).toLocaleDateString()}` : ''}
             </span>
+          )}
+          {showActions === 'seen' && (
+            <>
+              <button
+                onClick={handleRetry}
+                disabled={loading}
+                style={actionBtn('#f59e0b')}
+              >
+                {loading ? 'Retrying...' : '↻ Retry Cover Letter'}
+              </button>
+              <button onClick={handleSkip} disabled={loading} style={actionBtn('#6b7280')}>
+                Skip
+              </button>
+            </>
           )}
         </div>
       )}

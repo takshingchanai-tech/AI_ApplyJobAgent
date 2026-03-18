@@ -2,7 +2,7 @@
 
 A local Mac AI agent that automates Upwork job applications with a **human-in-the-loop review step** before submitting.
 
-The agent scrapes Upwork in headless mode, generates personalised cover letters, then opens a headed browser so you can review and click Submit yourself.
+The agent scrapes Upwork using deterministic Playwright (with LLM fallback for tricky fields), generates personalised cover letters, then opens a headed browser so you can review and click Submit yourself.
 
 ---
 
@@ -12,7 +12,7 @@ The agent scrapes Upwork in headless mode, generates personalised cover letters,
 Start Agent
     │
     ▼
-Headless Chrome scrapes Upwork jobs matching your keywords
+Playwright scrapes Upwork jobs (headless) — LLM fallback per field if selectors miss
     │
     ▼
 Deduplication check (already seen? skip)
@@ -43,7 +43,7 @@ Back in the app → click [✓ Mark as Applied]
 | Layer | Tech |
 |-------|------|
 | Backend | Python 3.12, FastAPI, SQLite (WAL mode) |
-| Browser automation | `browser-use` (scraping, headless) + Playwright (HITL, headed) |
+| Browser automation | Playwright (primary scraper, headless) + `browser-use` (fallback) + Playwright (HITL, headed) |
 | LLM | GPT-4o-mini (OpenAI) or Qwen Max (DashScope) |
 | PDF generation | ReportLab |
 | Frontend | React 18, TypeScript, Vite, Zustand |
@@ -210,7 +210,8 @@ sqlite3 data/upwork_agent.db "SELECT title, status, applied_at FROM jobs;"
 
 ## Notes
 
-- If `browser-use` fails to scrape (e.g. Upwork layout changed), the agent falls back to mock jobs — useful for testing the UI and cover letter generation flow without a live Upwork session.
+- Scraper uses a three-tier fallback: **Playwright** (primary, deterministic) → **browser-use** (LLM-driven fallback if Playwright returns nothing) → **mock data** (dev/testing fallback).
+- If Upwork changes its layout and selectors go stale, the LLM field-fallback inside Playwright kicks in automatically before escalating to browser-use.
 - The agent uses your existing Chrome profile cookies for headless scraping, so you stay logged in to Upwork without re-authenticating.
 - Cover letters are generated fresh for each job and saved as PDFs in `data/cover_letters/`.
 - All data is stored locally — no cloud sync, no external database.
