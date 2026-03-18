@@ -29,27 +29,27 @@ CHROME_BIN="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 AGENT_CHROME_PID=""
 AGENT_CHROME_TMP=""
 
+# Persistent profile dir — saves Upwork login/cookies between runs
+AGENT_CHROME_PROFILE="$PROJECT_DIR/.chrome-agent-profile"
+
 if curl -s --max-time 1 http://localhost:9222/json/version >/dev/null 2>&1; then
   # Chrome is already running with remote debugging — use it directly
   echo "✅ Chrome already running with remote debugging on port 9222 — agent will connect to it."
 elif [ -f "$CHROME_BIN" ]; then
-  # If Chrome is running WITHOUT remote debugging, quit it so we can relaunch with the flag
-  # Use a dedicated temp dir so Chrome launches as an independent process.
-  # Pointing --user-data-dir at the main profile causes the singleton mechanism
-  # to hand off to the already-running Chrome, which ignores --remote-debugging-port.
-  AGENT_CHROME_TMP=$(mktemp -d -t agent-chrome-XXXX)
+  # Use a persistent profile so Upwork login and cookies are saved between runs.
+  # A dedicated dir avoids the singleton handoff issue when main Chrome is already open.
+  mkdir -p "$AGENT_CHROME_PROFILE"
 
   echo "Launching agent Chrome with remote debugging..."
   echo ""
   echo "👉 In the Chrome window that opens:"
-  echo "   1. Log in to Upwork"
-  echo "   2. Solve any CAPTCHA / 'I am not a robot' check"
-  echo "   The agent will connect automatically once Upwork loads."
+  echo "   - If it's your first run: log in to Upwork and solve any CAPTCHA."
+  echo "   - On future runs your session will be remembered automatically."
   echo ""
 
   "$CHROME_BIN" \
     --remote-debugging-port=9222 \
-    --user-data-dir="$AGENT_CHROME_TMP" \
+    --user-data-dir="$AGENT_CHROME_PROFILE" \
     --disable-blink-features=AutomationControlled \
     --no-first-run \
     --no-default-browser-check \
@@ -94,7 +94,6 @@ echo "Press Ctrl+C to stop all servers."
 cleanup() {
   kill $BACKEND_PID $FRONTEND_PID 2>/dev/null || true
   [ -n "$AGENT_CHROME_PID" ] && kill "$AGENT_CHROME_PID" 2>/dev/null || true
-  [ -n "$AGENT_CHROME_TMP" ] && rm -rf "$AGENT_CHROME_TMP" 2>/dev/null || true
   exit 0
 }
 trap cleanup SIGINT SIGTERM

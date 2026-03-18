@@ -7,3 +7,13 @@
 venv/
 ENV/
 env/
+
+# Agent Chrome persistent profile (saves Upwork login between runs)
+.chrome-agent-profile/
+
+# Generated artifacts
+__pycache__/
+*.pyc
+data/upwork_agent.db-shm
+data/upwork_agent.db-wal
+data/cover_letters/
