@@ -33,21 +33,25 @@ if curl -s --max-time 1 http://localhost:9222/json/version >/dev/null 2>&1; then
   # Chrome is already running with remote debugging — use it directly
   echo "✅ Chrome already running with remote debugging on port 9222 — agent will connect to it."
 elif [ -f "$CHROME_BIN" ]; then
-  echo ""
-  echo "⚠️  For best results (bypass Cloudflare), launch Chrome with remote debugging BEFORE running this script:"
-  echo "   open -a 'Google Chrome' --args --remote-debugging-port=9222 --disable-blink-features=AutomationControlled"
-  echo ""
-  echo "Launching Chrome with remote debugging..."
+  # If Chrome is running WITHOUT remote debugging, quit it so we can relaunch with the flag
+  if pgrep -x "Google Chrome" >/dev/null 2>&1; then
+    echo "Quitting existing Chrome so it can relaunch with remote debugging..."
+    osascript -e 'quit app "Google Chrome"' 2>/dev/null || pkill -x "Google Chrome" 2>/dev/null || true
+    sleep 2
+  fi
+
+  CHROME_PROFILE="${CHROME_PROFILE_PATH:-$HOME/Library/Application Support/Google/Chrome}"
+  echo "Launching Chrome with remote debugging (your real profile)..."
   echo ""
   echo "👉 In the Chrome window that opens:"
-  echo "   1. Go to https://www.upwork.com"
-  echo "   2. Log in if prompted"
-  echo "   3. Solve any CAPTCHA / 'I am not a robot' check"
-  echo "   Then the agent will connect automatically."
+  echo "   1. Log in to Upwork if prompted"
+  echo "   2. Solve any CAPTCHA / 'I am not a robot' check"
+  echo "   The agent will connect automatically once Upwork loads."
   echo ""
 
   "$CHROME_BIN" \
     --remote-debugging-port=9222 \
+    --user-data-dir="$CHROME_PROFILE" \
     --disable-blink-features=AutomationControlled \
     --no-first-run \
     --no-default-browser-check \
