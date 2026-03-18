@@ -406,8 +406,9 @@ async def _scrape_with_playwright(search_url, max_jobs, chrome_profile, settings
             "Object.defineProperty(navigator,'webdriver',{get:()=>undefined})"
         )
 
-        # Inject real Chrome cookies (cf_clearance + Upwork session) so Cloudflare passes
-        if chrome_profile:
+        # Inject real Chrome cookies only when NOT using CDP
+        # (CDP session already carries all cookies in memory — no injection needed)
+        if chrome_profile and not connected_via_cdp:
             await emit({"type": "log", "level": "info",
                         "message": "Extracting Chrome cookies — approve macOS Keychain dialog if it appears..."})
             cookies = _extract_chrome_cookies_for_host(chrome_profile, "upwork.com")
@@ -418,7 +419,7 @@ async def _scrape_with_playwright(search_url, max_jobs, chrome_profile, settings
                             "message": f"Injected {len(cookies)} Chrome cookies ({len(cf)} cf_clearance) into Playwright."})
             else:
                 await emit({"type": "log", "level": "warn",
-                            "message": "No Upwork cookies found in Chrome profile. Make sure you are logged into Upwork in Chrome and have visited Upwork recently. Will continue without cookies."})
+                            "message": "No Upwork cookies found in Chrome profile. Will continue without cookies."})
 
         await page.goto(search_url, wait_until="domcontentloaded", timeout=30000)
         await asyncio.sleep(2)
