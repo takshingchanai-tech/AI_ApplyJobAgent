@@ -216,9 +216,10 @@ def _extract_chrome_cookies_for_host(chrome_profile_path: str, host_suffix: str)
     import subprocess, sqlite3, shutil, tempfile, hashlib
     try:
         # 1. Get Chrome's Safe Storage password from macOS Keychain
+        # Use a short timeout — when called from a background process the dialog never shows
         res = subprocess.run(
             ["security", "find-generic-password", "-s", "Chrome Safe Storage", "-w"],
-            capture_output=True, text=True, timeout=30,  # user may need to approve Keychain dialog
+            capture_output=True, text=True, timeout=5,
         )
         if res.returncode != 0:
             return []
@@ -370,7 +371,13 @@ async def _scrape_with_playwright(search_url, max_jobs, chrome_profile, settings
             await emit({"type": "log", "level": "info",
                         "message": "Connected to agent Chrome via CDP (real browser session)."})
         except Exception:
-            pass
+            await emit({"type": "log", "level": "warn",
+                        "message": (
+                            "Chrome not running with remote debugging on port 9222. "
+                            "To bypass Cloudflare, pre-launch Chrome before starting the agent: "
+                            "open -a 'Google Chrome' --args --remote-debugging-port=9222 "
+                            "--disable-blink-features=AutomationControlled"
+                        )})
 
         # Priority 2: launch persistent context with user's Chrome profile
         if not connected_via_cdp:
