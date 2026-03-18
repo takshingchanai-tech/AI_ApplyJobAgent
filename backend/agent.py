@@ -360,6 +360,9 @@ async def _extract_field_with_llm(field_name: str, context_html: str, settings: 
     raw = (resp.choices[0].message.content or "").strip()
     if field_name == "skills":
         return [s.strip() for s in raw.split(",") if s.strip()]
+    # If the LLM returned a sentence/explanation instead of a value, treat as empty
+    if len(raw) > 80 or raw.lower().startswith("the ") or raw.lower().startswith("there "):
+        return ""
     return raw
 
 
@@ -775,7 +778,6 @@ After processing all jobs, return ONLY valid JSON — no markdown fences, no exp
 
             # Generate cover letter with up to 3 retries (exponential backoff)
             await emit({"type": "generating_cover_letter", "job_id": job_id, "title": title})
-            await emit({"type": "log", "level": "info", "message": f"Generating cover letter for: {title}"})
 
             for attempt in range(1, 4):
                 try:
