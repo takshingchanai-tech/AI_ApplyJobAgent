@@ -36,7 +36,7 @@ elif [ -f "$CHROME_BIN" ]; then
   # If Chrome is running WITHOUT remote debugging, quit it so we can relaunch with the flag
   if pgrep -x "Google Chrome" >/dev/null 2>&1; then
     echo "Quitting existing Chrome so it can relaunch with remote debugging..."
-    osascript -e 'quit app "Google Chrome"' 2>/dev/null || pkill -x "Google Chrome" 2>/dev/null || true
+    pkill -x "Google Chrome" 2>/dev/null || true
     sleep 2
   fi
 
