@@ -423,7 +423,14 @@ async def _scrape_with_playwright(search_url, max_jobs, chrome_profile, settings
         await page.goto(search_url, wait_until="domcontentloaded", timeout=30000)
         await asyncio.sleep(2)
 
-        page_title = await page.title()
+        try:
+            await page.wait_for_load_state("domcontentloaded", timeout=8000)
+        except Exception:
+            pass
+        try:
+            page_title = await page.title()
+        except Exception:
+            page_title = ""
         page_url = page.url
         logger.info(f"[playwright] Landed on: {page_url} | title: {page_title}")
         await emit({"type": "log", "level": "info",
@@ -436,8 +443,17 @@ async def _scrape_with_playwright(search_url, max_jobs, chrome_profile, settings
                             "message": "⚠️ Cloudflare challenge detected. Please solve the CAPTCHA in the Chrome window that opened. Waiting up to 60 seconds..."})
                 for _ in range(30):
                     await asyncio.sleep(2)
-                    t = await page.title()
-                    body_check = await page.inner_text("body")
+                    try:
+                        # wait_until="domcontentloaded" gives page a chance to finish navigation
+                        await page.wait_for_load_state("domcontentloaded", timeout=5000)
+                    except Exception:
+                        pass
+                    try:
+                        t = await page.title()
+                        body_check = await page.inner_text("body")
+                    except Exception:
+                        # Execution context destroyed mid-navigation — wait and retry
+                        continue
                     still_blocked = any(kw in t.lower() for kw in [
                         "just a moment", "challenge", "log in", "sign in", "captcha", "verify"
                     ]) or "cloudflare ray id" in body_check.lower()
