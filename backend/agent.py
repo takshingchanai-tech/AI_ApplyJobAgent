@@ -326,17 +326,22 @@ async def _expand_description(page) -> None:
 
 async def _extract_field_with_llm(field_name: str, context_html: str, settings: dict):
     """LLM fallback when DOM selectors find nothing for a field."""
-    api_key = settings.get("openai_api_key", "") or os.getenv("OPENAI_API_KEY", "")
-    if not api_key:
-        return [] if field_name == "skills" else ""
-    model_name = settings.get("model", "gpt-4o-mini")
-    if model_name == "qwen-max":
+    openai_key = settings.get("openai_api_key", "") or os.getenv("OPENAI_API_KEY", "")
+    dashscope_key = settings.get("dashscope_api_key", "") or os.getenv("DASHSCOPE_API_KEY", "")
+
+    # Prefer OpenAI (gpt-4o-mini) for field extraction — fast and cheap.
+    # Only use DashScope if no OpenAI key is available.
+    if openai_key:
+        client = AsyncOpenAI(api_key=openai_key)
+        model_name = "gpt-4o-mini"
+    elif dashscope_key:
         client = AsyncOpenAI(
-            api_key=settings.get("dashscope_api_key", "") or os.getenv("DASHSCOPE_API_KEY", ""),
+            api_key=dashscope_key,
             base_url="https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
         )
+        model_name = "qwen-plus"  # qwen-plus is available on free tier; qwen-max requires paid access
     else:
-        client = AsyncOpenAI(api_key=api_key)
+        return [] if field_name == "skills" else ""
     instructions = {
         "title": "Extract only the job title text.",
         "client_name": "Extract only the client or company name. Return empty string if absent.",
