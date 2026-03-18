@@ -41,6 +41,12 @@ elif [ -f "$CHROME_BIN" ]; then
   fi
 
   CHROME_PROFILE="${CHROME_PROFILE_PATH:-$HOME/Library/Application Support/Google/Chrome}"
+
+  # Remove stale lock files left by pkill so Chrome starts cleanly
+  rm -f "$CHROME_PROFILE/SingletonLock" \
+        "$CHROME_PROFILE/SingletonCookie" \
+        "$CHROME_PROFILE/SingletonSocket" 2>/dev/null || true
+
   echo "Launching Chrome with remote debugging (your real profile)..."
   echo ""
   echo "👉 In the Chrome window that opens:"
@@ -58,7 +64,16 @@ elif [ -f "$CHROME_BIN" ]; then
     "https://www.upwork.com" \
     2>/dev/null &
   AGENT_CHROME_PID=$!
-  sleep 3
+
+  # Wait until Chrome is actually ready on port 9222 (up to 15 seconds)
+  echo "Waiting for Chrome to be ready..."
+  for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
+    sleep 1
+    if curl -s --max-time 1 http://localhost:9222/json/version >/dev/null 2>&1; then
+      echo "✅ Chrome ready on port 9222."
+      break
+    fi
+  done
 fi
 
 echo "Starting backend on :8000..."
